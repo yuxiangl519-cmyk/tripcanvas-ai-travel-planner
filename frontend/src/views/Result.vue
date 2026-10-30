@@ -887,10 +887,11 @@ const exportAsPDF = async () => {
 // 初始化地图
 const initMap = async () => {
   try {
-    if (import.meta.env.VITE_AMAP_SECURITY_JS_CODE) {
-      window._AMapSecurityConfig = {
-        securityJsCode: import.meta.env.VITE_AMAP_SECURITY_JS_CODE
-      }
+    const mapServiceHost = import.meta.env.DEV
+      ? `${window.location.origin}/_AMapService`
+      : import.meta.env.VITE_AMAP_SERVICE_HOST
+    if (mapServiceHost) {
+      window._AMapSecurityConfig = { serviceHost: mapServiceHost }
     }
     const AMap = await AMapLoader.load({
       key: import.meta.env.VITE_AMAP_WEB_JS_KEY,  // 高德地图Web端(JS API) Key

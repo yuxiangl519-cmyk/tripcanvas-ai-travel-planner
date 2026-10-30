@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     # 高德地图API配置
     amap_api_key: str = ""
+    amap_security_js_code: str = ""
 
     # Unsplash API配置
     unsplash_access_key: str = ""

@@ -25,3 +25,5 @@ powershell -ExecutionPolicy Bypass -File .\run-frontend.ps1
 ```
 
 前端地址以终端输出为准。后端文档地址为 http://localhost:8000/docs。首次地图查询可能需要联网下载 MCP 依赖。
+
+高德 Web 服务 Key 和 JS 安全密钥配置在 `backend/.env`；JS API Key 配置在 `frontend/.env`。本地地图请求通过后端代理，不要将安全密钥放在 `VITE_` 变量中。

@@ -1,6 +1,7 @@
 """FastAPI主应用"""
 
-from fastapi import FastAPI
+import httpx
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from ..config import get_settings, validate_config, print_config
 from .routes import trip, poi, map as map_routes
@@ -75,6 +76,18 @@ async def root():
         "docs": "/docs",
         "redoc": "/redoc"
     }
+
+
+@app.get("/_AMapService/{path:path}")
+async def amap_security_proxy(path: str, request: Request):
+    """Forward JS API requests without exposing the security code to browsers."""
+    upstream_host = "https://webapi.amap.com" if path.startswith("v4/map/styles") else "https://restapi.amap.com"
+    upstream_url = httpx.URL(upstream_host).copy_with(path="/" + path)
+    params = list(request.query_params.multi_items()) + [("jscode", settings.amap_security_js_code)]
+    async with httpx.AsyncClient(timeout=30) as client:
+        result = await client.get(upstream_url, params=params)
+    return Response(content=result.content, status_code=result.status_code,
+                    media_type=result.headers.get("content-type"))
 
 
 @app.get("/health")

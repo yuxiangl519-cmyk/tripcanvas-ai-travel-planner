@@ -46,6 +46,7 @@ uvicorn app.api.main:app --host 127.0.0.1 --port 8000
 | 变量 | 用途 |
 | --- | --- |
 | `AMAP_API_KEY` | 高德地图 Web 服务 Key |
+| `AMAP_SECURITY_JS_CODE` | 高德 JS API 安全密钥，由后端地图代理使用 |
 | `LLM_MODEL_ID` | 模型名称 |
 | `LLM_API_KEY` | 模型服务密钥 |
 | `LLM_BASE_URL` | 兼容模型服务的 API 地址 |
@@ -61,9 +62,9 @@ npm ci
 npm run dev
 ```
 
-在 `frontend/.env` 中配置 `VITE_API_BASE_URL=http://localhost:8000`、`VITE_AMAP_WEB_JS_KEY`，以及本地开发所需的 `VITE_AMAP_SECURITY_JS_CODE`。前端地址以 Vite 终端输出为准；后端 API 文档为 `http://localhost:8000/docs`。
+在 `frontend/.env` 中配置 `VITE_API_BASE_URL=http://localhost:8000`、`VITE_AMAP_WEB_JS_KEY`，后端中的 `AMAP_SECURITY_JS_CODE` 用于本地地图代理。前端地址以 Vite 终端输出为准；后端 API 文档为 `http://localhost:8000/docs`。
 
-`VITE_` 变量会被打包到浏览器代码中。**生产环境不要把高德安全密钥放到前端环境变量**，应按高德官方要求配置服务端安全代理。不要将 `.env` 或模型密钥提交到仓库。
+`VITE_` 变量会被打包到浏览器代码中。高德安全密钥仅配置在后端 `AMAP_SECURITY_JS_CODE`，本地通过 `/_AMapService` 代理请求；生产构建可通过 `VITE_AMAP_SERVICE_HOST` 指向该代理。不要将 `.env` 或模型密钥提交到仓库。
 
 ## 项目结构
 
@@ -80,6 +81,16 @@ frontend/
   src/services/    后端请求与浏览器历史记录
   src/assets/      界面图片
 ```
+
+## Cloudflare Tunnel 临时公网访问
+
+先启动本机前后端（例如前端 `127.0.0.1:5174`、后端 `127.0.0.1:8000`），然后运行官方 cloudflared：
+
+```bash
+cloudflared tunnel --no-autoupdate --protocol http2 --http-host-header localhost:5174 --url http://127.0.0.1:5174
+```
+
+命令会输出临时 `trycloudflare.com` 地址，停止隧道、前端、后端或电脑休眠后，网站将不可访问；每次重启隧道地址可能变化。该地址不需要登录即可访问，任何访客都能发起模型和地图请求并消耗对应额度，请按需限制访问。正式服务应使用受控的域名、访问控制及生产部署。
 
 ## 部署说明
 
