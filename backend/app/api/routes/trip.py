@@ -2,6 +2,9 @@
 
 from fastapi import APIRouter, HTTPException
 from threading import Lock
+from concurrent.futures import ThreadPoolExecutor
+from time import monotonic
+from uuid import uuid4
 import logging
 from ...models.schemas import (
     TripRequest,
@@ -14,6 +17,9 @@ from ...agents.trip_planner_agent import get_trip_planner_agent
 router = APIRouter(prefix="/trip", tags=["旅行规划"])
 planner_lock = Lock()
 logger = logging.getLogger(__name__)
+job_executor = ThreadPoolExecutor(max_workers=1)
+job_lock = Lock()
+plan_jobs = {}
 
 
 @router.post(
@@ -31,6 +37,38 @@ def plan_trip(request: TripRequest):
     except Exception as exc:
         logger.exception("旅行规划失败")
         raise HTTPException(status_code=502, detail=f"旅行规划失败：{exc}") from exc
+
+
+@router.post("/plan/jobs", status_code=202, summary="提交旅行规划任务")
+def create_plan_job(request: TripRequest):
+    now = monotonic()
+    with job_lock:
+        for job_id, (created, future) in list(plan_jobs.items()):
+            if future.done() and now - created > 3600:
+                del plan_jobs[job_id]
+        if sum(not future.done() for _, future in plan_jobs.values()) >= 10:
+            raise HTTPException(status_code=429, detail="当前规划任务较多，请稍后再试")
+        job_id = uuid4().hex
+        plan_jobs[job_id] = (now, job_executor.submit(plan_trip, request))
+    return {"id": job_id}
+
+
+@router.get("/plan/jobs/{job_id}", summary="查询旅行规划任务")
+def get_plan_job(job_id: str):
+    with job_lock:
+        job = plan_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="任务不存在或已过期，请重新生成")
+    future = job[1]
+    if not future.done():
+        return {"status": "pending"}
+    try:
+        return {"status": "completed", "result": future.result()}
+    except HTTPException as exc:
+        raise exc
+    except Exception:
+        logger.exception("旅行规划任务失败")
+        raise HTTPException(status_code=502, detail="旅行规划任务失败，请重试") from None
 
 
 @router.post("/replan-day", response_model=TripPlanResponse, summary="调整某一天行程")

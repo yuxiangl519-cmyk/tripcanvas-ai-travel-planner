@@ -40,12 +40,22 @@ apiClient.interceptors.response.use(
  */
 export async function generateTripPlan(formData: TripFormData): Promise<TripPlanResponse> {
   try {
-    const response = await apiClient.post<TripPlanResponse>('/api/trip/plan', formData, {
-      timeout: 600000 // 多智能体行程生成最多等待10分钟
-    })
-    return response.data
+    const { data: job } = await apiClient.post<{ id: string }>('/api/trip/plan/jobs', formData)
+    const deadline = Date.now() + 600000
+    let connectionFailures = 0
+    while (Date.now() < deadline) {
+      try {
+        const { data } = await apiClient.get<{ status: 'pending' | 'completed'; result?: TripPlanResponse }>(`/api/trip/plan/jobs/${job.id}`)
+        connectionFailures = 0
+        if (data.status === 'completed') return data.result!
+      } catch (error: any) {
+        // Retry temporary tunnel/network failures, but surface backend validation and task errors.
+        if (error.response?.data?.detail || ++connectionFailures >= 5) throw error
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000))
+    }
+    throw new Error('行程生成等待超时，请稍后重试')
   } catch (error: any) {
-    console.error('生成旅行计划失败:', error)
     throw new Error(error.response?.data?.detail || error.message || '生成旅行计划失败')
   }
 }
